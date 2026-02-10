@@ -1,0 +1,42 @@
+# Secrets and credentials
+*.secret
+*.key
+*.pem
+*.crt
+*-token.yaml
+*-credentials.yaml
+secrets/
+
+# Environment and local configs
+.env
+.env.local
+*.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Helm
+*.tgz
+
+# Kustomize
+kustomization.yaml.bak

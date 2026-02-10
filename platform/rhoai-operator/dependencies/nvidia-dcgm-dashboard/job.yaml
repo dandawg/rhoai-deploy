@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nvidia-dcgm-dashboard-setup
+  namespace: openshift-config-managed
+spec:
+  template:
+    spec:
+      serviceAccountName: nvidia-dcgm-dashboard-sa
+      restartPolicy: OnFailure
+      containers:
+      - name: setup-dashboard
+        image: registry.redhat.io/openshift4/ose-cli:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          
+          # Download NVIDIA DCGM Exporter Dashboard JSON
+          curl -Lf https://github.com/NVIDIA/dcgm-exporter/raw/main/grafana/dcgm-exporter-dashboard.json \
+            -o /tmp/dcgm-exporter-dashboard.json
+          
+          # Create ConfigMap from the dashboard JSON
+          oc create configmap nvidia-dcgm-exporter-dashboard \
+            --from-file=nvidia-dcgm-dashboard.json=/tmp/dcgm-exporter-dashboard.json \
+            -n openshift-config-managed \
+            --dry-run=client -o yaml | oc apply -f -
+          
+          # Label the ConfigMap for Administrator perspective
+          oc label configmap nvidia-dcgm-exporter-dashboard \
+            -n openshift-config-managed \
+            "console.openshift.io/dashboard=true" \
+            --overwrite
+          
+          # Label the ConfigMap for Developer perspective
+          oc label configmap nvidia-dcgm-exporter-dashboard \
+            -n openshift-config-managed \
+            "console.openshift.io/odc-dashboard=true" \
+            --overwrite
+          
+          echo "NVIDIA DCGM Dashboard successfully configured"
