@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rhoai-platform
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/name: rhoai-platform
+    app.kubernetes.io/part-of: rhoai-platform
+    app.kubernetes.io/component: platform
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/dandawg/rhoai-deploy.git
+      targetRevision: main
+      path: platform/rhoai-operator/dependencies
+    - repoURL: https://github.com/dandawg/rhoai-deploy.git
+      targetRevision: main
+      path: platform/nvidia-gpu-operator
+    - repoURL: https://github.com/dandawg/rhoai-deploy.git
+      targetRevision: main
+      path: platform/rhoai-operator
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 5m
+  ignoreDifferences:
+    - group: datasciencecluster.opendatahub.io
+      kind: DataScienceCluster
+      jsonPointers:
+        - /spec/components/*/devFlags

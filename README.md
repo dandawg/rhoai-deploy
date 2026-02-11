@@ -1,6 +1,6 @@
 # RHOAI Deploy
 
-Simplified deployment of Red Hat OpenShift AI (RHOAI) platform.
+Simplified deployment of Red Hat OpenShift AI (RHOAI) platform using GitOps.
 
 ## Overview
 
@@ -19,33 +19,61 @@ For GPU infrastructure (MachineSets), see the [openshift-infra](https://github.c
 - **GPU nodes** (optional, for model serving and training)
   - See [openshift-infra](https://github.com/redhat-ai-americas/openshift-infra) for GPU node deployment
 
-## Quick Start
+**Prerequisites Check:**
+```bash
+# Verify OpenShift version (4.16+ required)
+oc version
 
-### 1. Install OpenShift GitOps
+# Verify cluster-admin access
+oc whoami
+oc auth can-i create namespace
+```
+
+## Deployment Steps
+
+### Step 1: Install OpenShift GitOps (2-3 minutes)
 
 ```bash
 # Install operator subscription
 oc apply -k platform/gitops-operator/base/
 
-# Wait for operator (1-2 minutes)
-oc wait --for=condition=Available deployment/openshift-gitops-operator-controller-manager \
+# Wait for operator
+oc wait --for=condition=Available \
+  deployment/openshift-gitops-operator-controller-manager \
   -n openshift-operators --timeout=300s
 
 # Create ArgoCD instance
 oc apply -k platform/gitops-operator/instance/
 
-# Wait for ArgoCD (1-2 minutes)
-oc wait --for=condition=Ready pod -l app.kubernetes.io/name=openshift-gitops-server \
+# Wait for ArgoCD
+oc wait --for=condition=Ready \
+  pod -l app.kubernetes.io/name=openshift-gitops-server \
   -n openshift-gitops --timeout=300s
 ```
 
-### 2. Deploy GPU MachineSets (Optional)
+**Verify GitOps Installation:**
+```bash
+# Get ArgoCD URL and credentials
+ARGOCD_URL=$(oc get route openshift-gitops-server \
+  -n openshift-gitops -o jsonpath='{.spec.host}')
+ARGOCD_PASS=$(oc get secret openshift-gitops-cluster \
+  -n openshift-gitops -o jsonpath='{.data.admin\.password}' | base64 -d)
 
-If you need GPU nodes for model serving or training, deploy them first using the [openshift-infra](https://github.com/redhat-ai-americas/openshift-infra) repository:
+echo "ArgoCD URL: https://${ARGOCD_URL}"
+echo "Username: admin"
+echo "Password: ${ARGOCD_PASS}"
+```
+
+### Step 2: Deploy GPU Nodes (Optional, 10-15 minutes)
+
+GPU node deployment is managed in a separate repository. See the [openshift-infra](https://github.com/redhat-ai-americas/openshift-infra) repository for:
+- Multi-GPU instance type support (g4dn, g6)
+- Automated deployment scripts
+- Cost optimization guidance
 
 ```bash
 # Clone openshift-infra repo
-git clone https://github.com/redhat-ai-americas/openshift-infra.git
+git clone https://github.com/dandawg/openshift-infra.git
 cd openshift-infra
 
 # Deploy GPU nodes (see openshift-infra README for details)
@@ -55,33 +83,84 @@ INSTANCE_TYPE=g6.2xlarge ./infra/gpu-machineset/aws/deploy.sh
 cd ../rhoai-deploy
 ```
 
-### 3. Deploy RHOAI Platform
+### Step 3: Deploy RHOAI Platform (5-10 minutes)
 
+**Option A: Deploy as one Application (Recommended)**
 ```bash
-# Option 1: Deploy RHOAI with dependencies (recommended)
-oc apply -f gitops/platform/rhoai-operator.yaml
+# Single command deploys RHOAI + dependencies + GPU Operator
+oc apply -f gitops/platform/rhoai-platform.yaml
+```
 
-# Option 2: Deploy dependencies and RHOAI separately
-oc apply -f gitops/platform/rhoai-dependencies.yaml  # NFD + Kueue
+**Option B: Step-by-step**
+```bash
+# 1. Deploy RHOAI dependencies (NFD + Kueue)
+oc apply -f gitops/platform/rhoai-dependencies.yaml
+
+# Wait for dependencies
+oc wait --for=condition=Ready \
+  pod -l app=nfd-master -n openshift-nfd --timeout=300s
+oc wait --for=condition=Ready \
+  pod -l control-plane=controller-manager \
+  -n openshift-kueue --timeout=300s
+
+# 2. Deploy NVIDIA GPU Operator (required for GPU support)
 oc apply -f gitops/platform/nvidia-gpu-operator.yaml
+
+# Wait for GPU operator (3-5 minutes, only if GPU nodes exist)
+oc wait --for=condition=Ready \
+  pod -l app=gpu-operator -n nvidia-gpu-operator --timeout=300s
+
+# 3. Deploy RHOAI Operator
 oc apply -f gitops/platform/rhoai-operator.yaml
 ```
 
 ## Verification
 
+### Check ArgoCD Applications
+
 ```bash
-# Check ArgoCD applications
+# List all applications
 oc get applications -n openshift-gitops
 
-# Check GPU nodes
+# Check specific application status
+oc describe application <name> -n openshift-gitops
+
+# Watch applications sync
+watch oc get applications -n openshift-gitops
+```
+
+### Check RHOAI Status
+
+```bash
+# Check RHOAI operator
+oc get csv -n redhat-ods-operator
+
+# Check DataScienceCluster
+oc get datasciencecluster
+
+# Check RHOAI pods
+oc get pods -n redhat-ods-applications
+
+# Get RHOAI Dashboard URL
+RHOAI_URL=$(oc get route rhods-dashboard \
+  -n redhat-ods-applications -o jsonpath='{.spec.host}')
+echo "RHOAI Dashboard: https://${RHOAI_URL}"
+```
+
+### Check GPU Status (if GPU nodes deployed)
+
+```bash
+# List GPU nodes
 oc get nodes -l nvidia.com/gpu.present=true
 
-# Check RHOAI dashboard
-oc get route rhods-dashboard -n redhat-ods-applications
+# Check GPU allocatable resources
+oc describe node <gpu-node-name> | grep -A 5 "Allocatable:"
 
-# Access RHOAI
-RHOAI_URL=$(oc get route rhods-dashboard -n redhat-ods-applications -o jsonpath='{.spec.host}')
-echo "RHOAI Dashboard: https://${RHOAI_URL}"
+# Check NVIDIA GPU Operator pods
+oc get pods -n nvidia-gpu-operator
+
+# Verify GPU device plugin is running
+oc get daemonset nvidia-device-plugin-daemonset -n nvidia-gpu-operator
 ```
 
 ## Repository Structure
@@ -142,29 +221,68 @@ For GPU instance configuration, see the [openshift-infra](https://github.com/red
 
 ## Troubleshooting
 
-### GPU Nodes Issues
+### GPU Scheduling Issues
 
-For GPU node troubleshooting, see the [openshift-infra](https://github.com/redhat-ai-americas/openshift-infra) repository.
+**Problem:** Pods fail to schedule with error: `0/N nodes are available: X Insufficient nvidia.com/gpu, Y node(s) didn't match Pod's node affinity/selector`
 
+**Root Cause:** NVIDIA GPU Operator not deployed or GPU device plugin not running.
+
+**Solution:**
 ```bash
-# Check GPU Operator pods
+# 1. Verify GPU Operator is deployed
+oc get applications -n openshift-gitops | grep nvidia-gpu-operator
+
+# If not deployed, deploy it:
+oc apply -f gitops/platform/nvidia-gpu-operator.yaml
+
+# 2. Check GPU Operator pods
 oc get pods -n nvidia-gpu-operator
 
-# Check GPU nodes
+# 3. Verify GPU device plugin is running on GPU nodes
+oc get daemonset nvidia-device-plugin-daemonset -n nvidia-gpu-operator
+
+# 4. Check GPU resources are advertised
+oc get nodes -o json | jq '.items[] | {name: .metadata.name, gpuAllocatable: .status.allocatable["nvidia.com/gpu"]}'
+
+# 5. If GPU nodes exist but show 0 allocatable GPUs, restart device plugin
+oc rollout restart daemonset/nvidia-device-plugin-daemonset -n nvidia-gpu-operator
+```
+
+### GPU Nodes Issues
+
+For GPU node provisioning and troubleshooting, see the [openshift-infra](https://github.com/redhat-ai-americas/openshift-infra) repository.
+
+```bash
+# Check GPU nodes exist
 oc get nodes -l nvidia.com/gpu.present=true
+
+# Check GPU node labels
+oc get nodes --show-labels | grep gpu
 ```
 
 ### RHOAI Not Ready
 
 ```bash
-# Check operator status
-oc get csv -n redhat-ods-operator
+# Check operator logs
+oc logs -l name=rhods-operator -n redhat-ods-operator
 
-# Check DataScienceCluster
-oc get datasciencecluster
+# Check DataScienceCluster status
+oc describe datasciencecluster default-dsc
 
-# Check RHOAI pods
+# Check RHOAI component pods
 oc get pods -n redhat-ods-applications
+oc get pods -n redhat-ods-monitoring
+```
+
+### ArgoCD Application OutOfSync
+
+```bash
+# Force sync
+oc patch application <name> -n openshift-gitops \
+  --type merge -p '{"operation":{"sync":{}}}'
+
+# Check sync status
+oc get application <name> -n openshift-gitops -o yaml
 ```
 
 ## Resources
@@ -175,12 +293,26 @@ oc get pods -n redhat-ods-applications
 
 ## Next Steps
 
-After deploying the base platform, you can:
-1. Deploy AI models for inference
-2. Create workbenches for data science work
-3. Set up model serving with KServe
-4. Build ML pipelines
+After successful deployment:
 
-Related repositories:
+1. **Explore RHOAI Dashboard**
+   - Access the dashboard using the URL from verification steps
+   - Login with your OpenShift credentials
+   - Create a workbench for data science work
+   - Access Jupyter notebooks
+
+2. **Deploy AI Models** (see [rhoai-app-demos](https://github.com/redhat-ai-americas/rhoai-app-demos) repository)
+   - Download models to storage
+   - Configure model serving with KServe
+   - Test inference endpoints
+
+3. **Build Applications** (see [rhoai-app-demos](https://github.com/redhat-ai-americas/rhoai-app-demos) repository)
+   - Deploy AnythingLLM for RAG applications
+   - Set up n8n for workflow automation
+   - Create custom AI applications
+
+## Related Repositories
+
 - [openshift-infra](https://github.com/redhat-ai-americas/openshift-infra) - GPU infrastructure and MachineSets
 - [rhoai-app-demos](https://github.com/redhat-ai-americas/rhoai-app-demos) - Application-level demos and examples
+- [rhoai-model-serving](https://github.com/redhat-ai-americas/rhoai-model-serving) - Model serving configurations
