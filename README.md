@@ -8,20 +8,20 @@ This repository provides a streamlined approach to deploying the RHOAI platform:
 - **Platform**: RHOAI operator and dependencies (NFD, Kueue, NVIDIA GPU Operator)
 - **GitOps**: ArgoCD-based deployment automation
 
-**Note:** These deployment steps are specifically for **RHOAI 3.x**. RHOAI 3.x requires OpenShift 4.16+ and uses the `fast-3.x` subscription channel.
+**Note:** These deployment steps are specifically for **RHOAI 3.x**. RHOAI 3.x requires OpenShift 4.19+ and uses the `fast-3.x` subscription channel.
 
 For GPU infrastructure (MachineSets), see the [openshift-infra](https://github.com/redhat-ai-americas/openshift-infra) repository.
 
 ## Prerequisites
 
-- **OpenShift 4.16+** with cluster-admin access
+- **OpenShift 4.19+** with cluster-admin access
 - **`oc` CLI** installed and configured
 - **GPU nodes** (optional, for model serving and training)
   - See [openshift-infra](https://github.com/redhat-ai-americas/openshift-infra) for GPU node deployment
 
 **Prerequisites Check:**
 ```bash
-# Verify OpenShift version (4.16+ required)
+# Verify OpenShift version (4.19+ required)
 oc version
 
 # Verify cluster-admin access
@@ -34,35 +34,10 @@ oc auth can-i create namespace
 ### Step 1: Install OpenShift GitOps (2-3 minutes)
 
 ```bash
-# Install operator subscription
-oc apply -k platform/gitops-operator/base/
-
-# Wait for operator
-oc wait --for=condition=Available \
-  deployment/openshift-gitops-operator-controller-manager \
-  -n openshift-operators --timeout=300s
-
-# Create ArgoCD instance
-oc apply -k platform/gitops-operator/instance/
-
-# Wait for ArgoCD
-oc wait --for=condition=Ready \
-  pod -l app.kubernetes.io/name=openshift-gitops-server \
-  -n openshift-gitops --timeout=300s
+./bootstrap.sh
 ```
 
-**Verify GitOps Installation:**
-```bash
-# Get ArgoCD URL and credentials
-ARGOCD_URL=$(oc get route openshift-gitops-server \
-  -n openshift-gitops -o jsonpath='{.spec.host}')
-ARGOCD_PASS=$(oc get secret openshift-gitops-cluster \
-  -n openshift-gitops -o jsonpath='{.data.admin\.password}' | base64 -d)
-
-echo "ArgoCD URL: https://${ARGOCD_URL}"
-echo "Username: admin"
-echo "Password: ${ARGOCD_PASS}"
-```
+**Note:** If GitOps is already installed (e.g., from deploying another repository), the bootstrap script will detect it and skip installation.
 
 ### Step 2: Deploy GPU Nodes (Optional, 10-15 minutes)
 
@@ -168,10 +143,13 @@ oc get daemonset nvidia-device-plugin-daemonset -n nvidia-gpu-operator
 ```
 rhoai-deploy/
 ├── README.md              # This file
+├── bootstrap.sh           # GitOps installer script
+├── bootstrap/             # GitOps operator manifests
+│   └── gitops-operator/
 ├── gitops/               # ArgoCD Application manifests
 │   └── platform/        # RHOAI, GPU Operator, dependencies
 └── platform/            # Platform component definitions
-    ├── gitops-operator/ # OpenShift GitOps/ArgoCD
+    ├── gitops-operator/ # OpenShift GitOps/ArgoCD (legacy)
     ├── rhoai-operator/  # RHOAI with dependencies (NFD, Kueue)
     └── nvidia-gpu-operator/  # NVIDIA GPU Operator
 ```
@@ -182,7 +160,7 @@ rhoai-deploy/
 
 **RHOAI Operator** - Red Hat OpenShift AI platform
 - Dashboard, Workbenches, Model Serving, Pipelines
-- Requires OpenShift 4.16+ for RHOAI 3.x
+- Requires OpenShift 4.19+ for RHOAI 3.x
 - Currently using `fast-3.x` subscription channel
 
 **RHOAI Dependencies**
