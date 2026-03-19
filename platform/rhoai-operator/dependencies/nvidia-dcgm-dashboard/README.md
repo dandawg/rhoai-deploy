@@ -85,6 +85,33 @@ oc logs job/nvidia-dcgm-dashboard-setup -n openshift-config-managed
 
 ### No metrics showing
 
+OpenShift’s platform Prometheus scrapes targets via **ServiceMonitor** resources, not only `prometheus.io/scrape` annotations. If the dashboard is empty but the exporter pod is running, ensure the GPU Operator creates a ServiceMonitor:
+
+```bash
+oc get servicemonitor -n nvidia-gpu-operator nvidia-dcgm-exporter
+```
+
+If it is missing, enable it in **ClusterPolicy** (then wait for the next scrape interval):
+
+```yaml
+spec:
+  dcgmExporter:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+```
+
+Confirm metrics exist in Thanos (replace the route host with your cluster’s `thanos-querier` route):
+
+```bash
+TOKEN=$(oc whoami -t)
+ROUTE=$(oc get route thanos-querier -n openshift-monitoring -o jsonpath='{.spec.host}')
+curl -sk -H "Authorization: Bearer $TOKEN" \
+  "https://${ROUTE}/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP"
+```
+
+Other checks:
+
 ```bash
 # Verify DCGM exporter is running on GPU nodes
 oc get pods -n nvidia-gpu-operator -l app=nvidia-dcgm-exporter

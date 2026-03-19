@@ -20,6 +20,8 @@ spec:
     enabled: true
   dcgmExporter:
     enabled: true
+    serviceMonitor:
+      enabled: true
   gfd:
     enabled: true
   nodeStatusExporter:
