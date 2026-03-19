@@ -169,12 +169,20 @@ oc get pods -n cert-manager
 
 ### LeaderWorkerSet (LWS) Operator
 
-Located at `platform/rhoai-operator/dependencies/lws-operator/`. Required by llm-d for `LLMInferenceService` controller and multi-pod inference workloads (e.g., tensor parallelism across multiple GPUs). Installs into `openshift-operators` (cluster-scoped).
+Located at `platform/rhoai-operator/dependencies/lws-operator/`. Required by llm-d for `LLMInferenceService` controller and multi-pod inference workloads (e.g., tensor parallelism across multiple GPUs).
+
+On **redhat-operators** the package name is **`leader-worker-set`** (not `lws`), channel **`stable-v1.0`**, and the operator installs into namespace **`openshift-lws-operator`** with its own OperatorGroup — matching what OperatorHub creates when you install manually.
 
 ```bash
 # Verify LWS is installed after ArgoCD sync
-oc get csv -n openshift-operators | grep lws
+oc get subscription,csv -n openshift-lws-operator
 oc get crd leaderworkersets.leaderworkerset.x-k8s.io
+```
+
+If you previously synced an incorrect Subscription (`name: lws` in `openshift-operators`), delete it so it does not conflict with catalog expectations:
+
+```bash
+oc delete subscription lws -n openshift-operators --ignore-not-found
 ```
 
 ### Gateway API for llm-d Inference
@@ -182,12 +190,19 @@ oc get crd leaderworkersets.leaderworkerset.x-k8s.io
 Located at `platform/rhoai-operator/dependencies/gateway-api/`. Creates a dedicated `openshift-ai-inference` Gateway in `openshift-ingress` that llm-d uses to expose inference endpoints. This is **separate** from the `data-science-gateway` (which serves RHOAI dashboard and workbenches).
 
 - Reuses the existing `data-science-gateway-class` GatewayClass (provisioned by RHOAI 3.x)
-- Uses `router-certs-default` (cluster's default wildcard self-signed TLS cert) -- no manual cert creation needed
+- Uses **`data-science-gateway-service-tls`** (same Secret as RHOAI's `data-science-gateway`) — present in `openshift-ingress` on typical RHOAI 3.x installs. Many clusters **do not** have `router-certs-default`; the default ingress cert is often a cert-manager Secret such as `cert-manager-ingress-cert` (see `IngressController` `spec.defaultCertificate`).
 - Allows routes from all namespaces so any project's `LLMInferenceService` can attach
 
 ```bash
 # Verify the inference gateway is programmed after ArgoCD sync
 oc get gateway openshift-ai-inference -n openshift-ingress
+
+# If Argo CD shows Degraded but Programmed=True, check listener conditions (ResolvedRefs / Accepted must be True)
+oc get gateway openshift-ai-inference -n openshift-ingress -o jsonpath='{.status.listeners}' | jq .
+
+# Pick the correct TLS Secret name for your cluster (then patch gateway-api/gateway.yaml if different):
+oc get secret -n openshift-ingress | grep -E 'tls|TLS'
+oc get ingresscontroller default -n openshift-ingress-operator -o jsonpath='Default ingress cert Secret: {.spec.defaultCertificate.name}{"\n"}'
 ```
 
 Both components are included in `platform/rhoai-operator/dependencies/kustomization.yaml` and will be picked up automatically by the `rhoai-platform` ArgoCD Application.

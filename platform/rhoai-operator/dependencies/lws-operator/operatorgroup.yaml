@@ -1,0 +1,11 @@
+# Single-namespace install. Do not leave spec empty — OLM can treat that as a cluster-wide group and
+# will break if a second OperatorGroup exists (e.g. from a prior UI install).
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-lws-operator
+  namespace: openshift-lws-operator
+spec:
+  targetNamespaces:
+    - openshift-lws-operator
+  upgradeStrategy: Default

@@ -1,0 +1,13 @@
+# Package name on redhat-operators is "leader-worker-set" (not "lws").
+# Installs into openshift-lws-operator with channel stable-v1.0 — matches OperatorHub defaults.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: leader-worker-set
+  namespace: openshift-lws-operator
+spec:
+  channel: stable-v1.0
+  installPlanApproval: Automatic
+  name: leader-worker-set
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
