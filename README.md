@@ -154,6 +154,46 @@ rhoai-deploy/
     └── nvidia-gpu-operator/  # NVIDIA GPU Operator
 ```
 
+## llm-d Distributed Inference
+
+[llm-d](https://github.com/llm-d/llm-d) is a Kubernetes-native framework for serving large language models at scale with prefix-cache-aware routing and disaggregated serving. The following components are included in this repository to enable llm-d on RHOAI.
+
+### Prerequisites for llm-d
+
+**cert-manager** must be installed on the cluster before deploying the LeaderWorkerSet operator (LWS requires cert-manager for webhook TLS certificates). cert-manager is not included here and is assumed to be pre-installed.
+
+```bash
+# Verify cert-manager is running
+oc get pods -n cert-manager
+```
+
+### LeaderWorkerSet (LWS) Operator
+
+Located at `platform/rhoai-operator/dependencies/lws-operator/`. Required by llm-d for `LLMInferenceService` controller and multi-pod inference workloads (e.g., tensor parallelism across multiple GPUs). Installs into `openshift-operators` (cluster-scoped).
+
+```bash
+# Verify LWS is installed after ArgoCD sync
+oc get csv -n openshift-operators | grep lws
+oc get crd leaderworkersets.leaderworkerset.x-k8s.io
+```
+
+### Gateway API for llm-d Inference
+
+Located at `platform/rhoai-operator/dependencies/gateway-api/`. Creates a dedicated `openshift-ai-inference` Gateway in `openshift-ingress` that llm-d uses to expose inference endpoints. This is **separate** from the `data-science-gateway` (which serves RHOAI dashboard and workbenches).
+
+- Reuses the existing `data-science-gateway-class` GatewayClass (provisioned by RHOAI 3.x)
+- Uses `router-certs-default` (cluster's default wildcard self-signed TLS cert) -- no manual cert creation needed
+- Allows routes from all namespaces so any project's `LLMInferenceService` can attach
+
+```bash
+# Verify the inference gateway is programmed after ArgoCD sync
+oc get gateway openshift-ai-inference -n openshift-ingress
+```
+
+Both components are included in `platform/rhoai-operator/dependencies/kustomization.yaml` and will be picked up automatically by the `rhoai-platform` ArgoCD Application.
+
+---
+
 ## Components
 
 ### Platform Layer
@@ -166,6 +206,8 @@ rhoai-deploy/
 **RHOAI Dependencies**
 - Node Feature Discovery (NFD) - Hardware feature detection
 - Red Hat Build for Kueue - Job queuing and resource management
+- LeaderWorkerSet (LWS) Operator - Multi-pod inference workloads for llm-d
+- Gateway API (openshift-ai-inference) - Inference endpoint routing for llm-d
 
 **NVIDIA GPU Operator** - GPU infrastructure
 - GPU drivers, CUDA runtime, device plugin
