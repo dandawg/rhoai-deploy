@@ -1,0 +1,8 @@
+# AllNamespaces mode — spec must be empty (no targetNamespaces) so the operator
+# watches cluster-wide, which is required by the rhcl-operator install modes.
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: redhat-rhcl-operator
+  namespace: redhat-rhcl-operator
+spec: {}

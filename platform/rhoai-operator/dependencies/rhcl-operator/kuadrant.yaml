@@ -1,0 +1,9 @@
+# Kuadrant instance activates the RHCL controller components (Authorino, Limitador, DNS
+# operator). Required for AuthPolicy/RateLimitPolicy to function, and also ensures the
+# authpolicies.kuadrant.io CRD is recognised by KServe's Gateway validation.
+apiVersion: kuadrant.io/v1beta1
+kind: Kuadrant
+metadata:
+  name: kuadrant
+  namespace: redhat-rhcl-operator
+spec: {}

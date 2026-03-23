@@ -7,6 +7,7 @@ resources:
   - nvidia-dcgm-dashboard
   - lws-operator
   - gateway-api
+  - rhcl-operator
 
 # Add sync wave annotation to ensure dependencies install first
 commonAnnotations:
