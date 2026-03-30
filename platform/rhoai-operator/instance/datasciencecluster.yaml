@@ -40,4 +40,4 @@ spec:
     llamastackoperator:
       managementState: Managed
     trainingoperator:
-      managementState: Removed
+      managementState: Managed
