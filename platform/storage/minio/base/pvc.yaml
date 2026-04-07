@@ -1,0 +1,14 @@
+# Base size; use overlays/large for a larger PVC (set before first bind if possible).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 60Gi
+  volumeMode: Filesystem

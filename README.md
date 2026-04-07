@@ -7,6 +7,7 @@ Simplified deployment of Red Hat OpenShift AI (RHOAI) platform using GitOps.
 This repository provides a streamlined approach to deploying the RHOAI platform:
 - **Platform**: RHOAI operator and dependencies (NFD, Kueue, NVIDIA GPU Operator)
 - **GitOps**: ArgoCD-based deployment automation
+- **Optional storage**: MinIO (S3-compatible) via a separate Argo CD Application with manual sync
 
 **Note:** These deployment steps are specifically for **RHOAI 3.x**. RHOAI 3.x requires OpenShift 4.19+ and uses the `fast-3.x` subscription channel.
 
@@ -89,6 +90,51 @@ oc wait --for=condition=Ready \
 oc apply -f gitops/platform/rhoai-operator.yaml
 ```
 
+### Step 4: MinIO object storage (Optional)
+
+MinIO is **not** included in [`gitops/platform/rhoai-platform.yaml`](gitops/platform/rhoai-platform.yaml). The [`gitops/platform/minio.yaml`](gitops/platform/minio.yaml) Application uses **manual sync only** (no automated sync). Root credentials are **not** committed to Git; you must create the Secret before syncing.
+
+Manifests live under [`platform/storage/minio/`](platform/storage/minio/) (Kustomize **base** in `base/`, **large** PVC overlay in `overlays/large/`). Images are pinned (`quay.io/minio/minio` and `quay.io/minio/mc`, same release tag). A Job creates buckets `models`, `data`, and `pipelines` after the server is up.
+
+**1. Create the `minio` namespace and root credentials Secret**
+
+Generate a root user and password (or set literals yourself). Keys in the Secret must be exactly `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD`.
+
+```bash
+MINIO_ROOT_USER="minioadmin"
+MINIO_ROOT_PASSWORD="$(openssl rand -hex 24)"
+
+oc create namespace minio --dry-run=client -o yaml | oc apply -f -
+
+oc create secret generic minio-secret -n minio \
+  --from-literal=MINIO_ROOT_USER="${MINIO_ROOT_USER}" \
+  --from-literal=MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD}"
+
+# Save the password — you need it for the MinIO console and S3 clients
+echo "MinIO root password: ${MINIO_ROOT_PASSWORD}"
+```
+
+For a fixed lab password instead of random bytes, assign `MINIO_ROOT_PASSWORD` yourself before `oc create secret` (use a strong value outside demos).
+
+**2. Register the Argo CD Application**
+
+```bash
+oc apply -f gitops/platform/minio.yaml
+```
+
+**3. Sync manually**
+
+In the Argo CD UI (or CLI), open the `minio` application and run **Sync**. Until the Secret exists, the MinIO pods and bucket Job will not succeed.
+
+**4. Larger PVC (optional)**
+
+For a **180Gi** PVC instead of the default **60Gi**, set `spec.source.path` in [`gitops/platform/minio.yaml`](gitops/platform/minio.yaml) to `platform/storage/minio/overlays/large` **before** the PVC is first bound. Expanding a bound RWO PVC depends on your storage class; planning size up front avoids migration.
+
+**Endpoints**
+
+- In-cluster S3 API: `http://minio-service.minio.svc:9000`
+- OpenShift Routes: `oc get routes -n minio` (API and console UI)
+
 ## Verification
 
 ### Check ArgoCD Applications
@@ -138,6 +184,13 @@ oc get pods -n nvidia-gpu-operator
 oc get daemonset nvidia-device-plugin-daemonset -n nvidia-gpu-operator
 ```
 
+### Check MinIO (if deployed)
+
+```bash
+oc get pods,routes,job -n minio
+oc logs job/minio-create-buckets -n minio
+```
+
 ## Repository Structure
 
 ```
@@ -147,11 +200,12 @@ rhoai-deploy/
 ├── bootstrap/             # GitOps operator manifests
 │   └── gitops-operator/
 ├── gitops/               # ArgoCD Application manifests
-│   └── platform/        # RHOAI, GPU Operator, dependencies
+│   └── platform/        # RHOAI, GPU Operator, dependencies, optional MinIO
 └── platform/            # Platform component definitions
     ├── gitops-operator/ # OpenShift GitOps/ArgoCD (legacy)
     ├── rhoai-operator/  # RHOAI with dependencies (NFD, Kueue)
-    └── nvidia-gpu-operator/  # NVIDIA GPU Operator
+    ├── nvidia-gpu-operator/  # NVIDIA GPU Operator
+    └── storage/minio/   # Optional MinIO (base + overlays/large)
 ```
 
 ## llm-d Distributed Inference
@@ -227,6 +281,10 @@ Both components are included in `platform/rhoai-operator/dependencies/kustomizat
 **NVIDIA GPU Operator** - GPU infrastructure
 - GPU drivers, CUDA runtime, device plugin
 - DCGM monitoring and metrics
+
+**MinIO (optional)** - S3-compatible object storage in namespace `minio`
+- Separate Argo CD Application [`gitops/platform/minio.yaml`](gitops/platform/minio.yaml), manual sync
+- Root Secret created out-of-band; buckets `models`, `data`, `pipelines` via post-deploy Job
 
 See [platform/rhoai-operator/README.md](platform/rhoai-operator/README.md) and [platform/nvidia-gpu-operator/README.md](platform/nvidia-gpu-operator/README.md) for details.
 
@@ -318,6 +376,20 @@ oc patch application <name> -n openshift-gitops \
 
 # Check sync status
 oc get application <name> -n openshift-gitops -o yaml
+```
+
+### MinIO pods or bucket Job failing
+
+**Cause:** `minio-secret` missing, wrong keys, or MinIO not ready when the Job ran.
+
+**Solution:**
+```bash
+oc get secret minio-secret -n minio
+oc describe pod -l app=minio -n minio
+oc logs job/minio-create-buckets -n minio
+# After fixing the Secret or waiting for MinIO to be Ready:
+oc delete job minio-create-buckets -n minio --ignore-not-found
+oc patch application minio -n openshift-gitops --type merge -p '{"operation":{"sync":{}}}'
 ```
 
 ## Resources

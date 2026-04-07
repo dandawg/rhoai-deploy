@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: minio
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/name: minio
+    app.kubernetes.io/part-of: rhoai-platform
+    app.kubernetes.io/component: storage
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/dandawg/rhoai-deploy.git
+    targetRevision: main
+    path: platform/storage/minio
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

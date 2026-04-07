@@ -1,0 +1,50 @@
+# Runs after MinIO Deployment (sync wave). Idempotent bucket creation.
+# mc tag is separate from server on Quay; verify both exist before bumping.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-create-buckets
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  ttlSecondsAfterFinished: 900
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        app: minio-create-buckets
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: mc-config
+          emptyDir: {}
+      containers:
+        - name: mc
+          image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+          imagePullPolicy: IfNotPresent
+          env:
+            # OpenShift runs as arbitrary UID with no writable $HOME; mc defaults to ~/.mc → mkdir /.mc fails.
+            - name: MC_CONFIG_DIR
+              value: /var/mc
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_PASSWORD
+          volumeMounts:
+            - name: mc-config
+              mountPath: /var/mc
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              mc alias set local http://minio-service.minio.svc:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+              mc mb --ignore-existing local/models
+              mc mb --ignore-existing local/data
+              mc mb --ignore-existing local/pipelines
+              mc ls local
