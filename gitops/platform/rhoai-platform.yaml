@@ -40,3 +40,4 @@ spec:
       kind: DataScienceCluster
       jsonPointers:
         - /spec/components/*/devFlags
+        - /spec/components/ray

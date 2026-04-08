@@ -12,7 +12,6 @@ spec:
       tls:
         mode: Terminate
         # Use the same TLS Secret as RHOAI's data-science-gateway (exists in openshift-ingress on RHOAI 3.x).
-        # Clusters without RHOAI may use router-certs-default or the IngressController defaultCertificate secret instead — see README.
         certificateRefs:
           - group: ""
             kind: Secret

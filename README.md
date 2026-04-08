@@ -47,18 +47,6 @@ GPU node deployment is managed in a separate repository. See the [openshift-infr
 - Automated deployment scripts
 - Cost optimization guidance
 
-```bash
-# Clone openshift-infra repo
-git clone https://github.com/dandawg/openshift-infra.git
-cd openshift-infra
-
-# Deploy GPU nodes (see openshift-infra README for details)
-INSTANCE_TYPE=g6.2xlarge ./infra/gpu-machineset/aws/deploy.sh
-
-# Return to rhoai-deploy
-cd ../rhoai-deploy
-```
-
 ### Step 3: Deploy RHOAI Platform (5-10 minutes)
 
 **Option A: Deploy as one Application (Recommended)**
@@ -313,6 +301,28 @@ find gitops/ -name "*.yaml" -type f -exec sed -i '' \
 For GPU instance configuration, see the [openshift-infra](https://github.com/redhat-ai-americas/openshift-infra) repository.
 
 ## Troubleshooting
+
+### ArgoCD "forbidden" Errors on System Namespaces
+
+**Problem:** ArgoCD reports errors like:
+```
+serviceaccounts "nvidia-dcgm-dashboard-sa" is forbidden: User "system:serviceaccount:openshift-gitops:openshift-gitops-argocd-application-controller" cannot patch resource "serviceaccounts" in API group "" in the namespace "openshift-config-managed"
+```
+
+**Root Cause:** The `openshift-gitops-admin` ClusterRoleBinding that grants `cluster-admin` to the ArgoCD service account was never applied. This happens when OpenShift GitOps was pre-installed by another repository — `bootstrap.sh` detected it was already running and exited early without applying the binding.
+
+**Solution:**
+```bash
+# Apply the ClusterRoleBinding (idempotent — safe to run at any time)
+oc apply -f bootstrap/gitops-operator/instance/clusterrolebinding.yaml
+
+# Verify
+oc get clusterrolebinding openshift-gitops-admin
+
+# Force ArgoCD to re-sync (selfHeal will also trigger it automatically)
+oc patch application rhoai-platform -n openshift-gitops \
+  --type merge -p '{"operation":{"sync":{}}}'
+```
 
 ### GPU Scheduling Issues
 
