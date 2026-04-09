@@ -185,11 +185,13 @@ spec:
     codeflare:
       managementState: Removed    # Disable distributed training
     ray:
-      managementState: Removed    # Disable Ray
+      managementState: Removed    # Disable KubeRay (defaults to Managed in instance/datasciencecluster.yaml)
     kueue:
       managementState: Removed    # Use external Kueue operator
     trainingoperator:
-      managementState: Removed    # Disable training operator
+      managementState: Removed    # Disable Kubeflow Training Operator
+    trainer:
+      managementState: Removed    # Disable Kubeflow Trainer v2 (defaults to Managed in instance/datasciencecluster.yaml)
     trustyai:
       managementState: Removed    # Disable TrustyAI
 ```
@@ -197,6 +199,8 @@ spec:
 Available states:
 - `Managed` - Component is deployed and managed
 - `Removed` - Component is not deployed
+
+GitOps deployments that use this repo’s Argo CD Applications (`gitops/platform/rhoai-operator.yaml` and `rhoai-platform.yaml`) set **`ignoreDifferences` on `DataScienceCluster` `default-dsc` `/spec`**. The first sync applies `instance/datasciencecluster.yaml`; later cluster-side edits to that spec are not treated as drift (self-heal will not overwrite them). Run an Application **Sync** to re-apply Git and reset the spec.
 
 ## Accessing RHOAI Dashboard
 

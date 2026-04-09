@@ -35,6 +35,6 @@ spec:
   ignoreDifferences:
     - group: datasciencecluster.opendatahub.io
       kind: DataScienceCluster
+      name: default-dsc
       jsonPointers:
-        - /spec/components/*/devFlags
-        - /spec/components/ray
+        - /spec

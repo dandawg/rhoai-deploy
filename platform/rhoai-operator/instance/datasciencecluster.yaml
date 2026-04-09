@@ -27,7 +27,7 @@ spec:
     aipipelines:
       managementState: Managed
     ray:
-      managementState: Removed
+      managementState: Managed
     kueue:
       defaultClusterQueueName: default
       defaultLocalQueueName: default
@@ -40,4 +40,6 @@ spec:
     llamastackoperator:
       managementState: Managed
     trainingoperator:
+      managementState: Managed
+    trainer:
       managementState: Managed
