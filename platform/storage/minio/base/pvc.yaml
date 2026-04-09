@@ -4,7 +4,10 @@ kind: PersistentVolumeClaim
 metadata:
   name: minio-pvc
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    # Same wave as Deployment — WaitForFirstConsumer storage won't bind until the
+    # consumer pod exists; an earlier wave deadlocks under Argo CD (PVC never Bound).
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   accessModes:
     - ReadWriteOnce
