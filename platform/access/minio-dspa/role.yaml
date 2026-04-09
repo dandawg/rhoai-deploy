@@ -1,0 +1,11 @@
+# Grants the ESO service account read access to minio-secret in the minio namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: eso-minio-secret-reader
+  namespace: minio
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["minio-secret"]
+    verbs: ["get", "list", "watch"]

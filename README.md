@@ -123,6 +123,20 @@ For a **180Gi** PVC instead of the default **60Gi**, set `spec.source.path` in [
 - In-cluster S3 API: `http://minio-service.minio.svc:9000`
 - OpenShift Routes: `oc get routes -n minio` (API and console UI)
 
+### Step 5: External Secrets Operator and pipeline credentials (Optional)
+
+[`platform/access/`](platform/access/) installs the **External Secrets Operator for Red Hat OpenShift** and creates the `minio-dspa-connection` Secret in `demo` by syncing from `minio/minio-secret`. This is required if you plan to use the Data Science Pipelines server from [rhoai-distributed](https://github.com/redhat-ai-americas/rhoai-distributed).
+
+The `access` Application is intentionally separate from `minio` so it can be ordered after MinIO is healthy. When using [rhoai-demo-foundations](https://github.com/redhat-ai-americas/rhoai-demo-foundations) as an app-of-apps, this ordering is handled automatically via sync waves (minio wave 4, access wave 5).
+
+```bash
+oc apply -f gitops/platform/access.yaml
+```
+
+Then **Sync** the `access` Application in Argo CD. The operator installs first; once the `external-secrets-operator` CSV shows `Succeeded`, the `ExternalSecrets` operand and the `minio-dspa-connection` ExternalSecret will reconcile automatically.
+
+> **Note:** The Red Hat ESO (`openshift-external-secrets-operator`) cannot co-exist with the community ESO. If you have the community operator installed, uninstall it first.
+
 ## Verification
 
 ### Check ArgoCD Applications
