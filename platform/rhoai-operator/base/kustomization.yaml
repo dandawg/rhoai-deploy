@@ -19,4 +19,4 @@ patches:
     patch: |-
       - op: replace
         path: /spec/channel
-        value: fast-3.x
+        value: stable-3.3
