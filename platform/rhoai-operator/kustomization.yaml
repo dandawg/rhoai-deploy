@@ -5,3 +5,4 @@ resources:
   - dependencies  # NFD, Kueue, and optional NVIDIA operators
   - base          # RHOAI operator subscription
   - instance      # DataScienceCluster
+  - post-install  # Resources requiring RHOAI to be fully ready (wave 5)

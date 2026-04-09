@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../dependencies/gateway-api
+
+# Apply after RHOAI operator (wave 1) and DataScienceCluster (wave 2) are healthy,
+# so that the data-science-gateway-class GatewayClass created by KServe already exists.
+commonAnnotations:
+  argocd.argoproj.io/sync-wave: "5"
