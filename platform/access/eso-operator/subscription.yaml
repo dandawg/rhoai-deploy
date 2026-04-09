@@ -4,7 +4,7 @@ metadata:
   name: openshift-external-secrets-operator
   namespace: external-secrets-operator
 spec:
-  channel: tech-preview-v0.1
+  channel: stable-v1.1
   name: openshift-external-secrets-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
