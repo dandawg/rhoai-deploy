@@ -9,4 +9,4 @@ spec:
   source: redhat-operators
   sourceNamespace: openshift-marketplace
   installPlanApproval: Manual
-  startingCSV: rhods-operator.v3.3.0
+  startingCSV: rhods-operator.3.3.0
