@@ -7,6 +7,8 @@ metadata:
     app.kubernetes.io/name: access
     app.kubernetes.io/part-of: rhoai-platform
     app.kubernetes.io/component: platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
 spec:
   project: default
   source:
@@ -24,9 +26,9 @@ spec:
       - ServerSideApply=true
       - SkipDryRunOnMissingResource=true
     retry:
-      limit: 5
+      limit: 20
       backoff:
-        duration: 30s
+        duration: 60s
         factor: 2
         maxDuration: 10m
   ignoreDifferences:

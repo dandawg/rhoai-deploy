@@ -130,10 +130,21 @@ For a **180Gi** PVC instead of the default **60Gi**, set `spec.source.path` in [
 The `access` Application is intentionally separate from `minio` so it can be ordered after MinIO is healthy. When using [rhoai-demo-foundations](https://github.com/redhat-ai-americas/rhoai-demo-foundations) as an app-of-apps, this ordering is handled automatically via sync waves (minio wave 4, access wave 5).
 
 ```bash
+# 1. Install the External Secrets Operator (OLM subscription + namespace)
+oc apply -f gitops/platform/access-operator.yaml
+
+# 2. Wait for the CSV to reach Succeeded before applying the instance
+oc wait csv -n external-secrets-operator \
+  -l operators.coreos.com/openshift-external-secrets-operator.external-secrets-operator \
+  --for=jsonpath='{.status.phase}'=Succeeded --timeout=300s
+
+# 3. Deploy the ESO instance and minio-dspa-connection ExternalSecret
 oc apply -f gitops/platform/access.yaml
 ```
 
-Then **Sync** the `access` Application in Argo CD. The operator installs first; once the `external-secrets-operator` CSV shows `Succeeded`, the `ExternalSecrets` operand and the `minio-dspa-connection` ExternalSecret will reconcile automatically.
+Then **Sync** the `access` Application in Argo CD. Once `access-operator` is healthy and the `external-secrets-operator` CSV shows `Succeeded`, the `ExternalSecretsConfig` operand and the `minio-dspa-connection` ExternalSecret will reconcile automatically.
+
+> **Note:** `access-operator` must be applied and healthy before `access`. Applying only `access.yaml` without `access-operator.yaml` first will cause the `access` Application to fail with CRD-not-found errors until it retries.
 
 > **Note:** The Red Hat ESO (`openshift-external-secrets-operator`) cannot co-exist with the community ESO. If you have the community operator installed, uninstall it first.
 
