@@ -1,11 +1,14 @@
-# Runs after MinIO Deployment (sync wave). Idempotent bucket creation.
+# Argo CD PostSync hook: runs after the Sync phase and all non-hook resources are
+# Healthy (unlike sync-wave ordering, which only spaces applies by ~2s and does not
+# wait for MinIO to be ready). Idempotent bucket creation.
 # mc tag is separate from server on Quay; verify both exist before bumping.
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: minio-create-buckets
   annotations:
-    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
 spec:
   ttlSecondsAfterFinished: 900
   backoffLimit: 6
